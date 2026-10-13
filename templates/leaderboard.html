@@ -1,0 +1,36 @@
+<nav>
+
+  <a href="rules.html" class="rules-link">Noteikumi</a> 
+</nav>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Press Fish Leaderboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    
+    <header>
+        <h1>TOP 5</h1>
+        <h2># Spēlētājs Punkti</h2>
+    </header>
+    <ul id="list"></ul>
+    <script>
+        fetch("names.json")
+        .then(response => response.json())
+        .then(names => {
+            const list = document.getElementById("list");
+            names.forEach(name => {
+                const li = document.createElement("li");
+                li.textContent = name;
+                list.appendChild(li);
+            });
+        })
+      .catch(() => {
+        document.getElementById("list").textContent = "dont have names.json";
+      });
+    </script>
+</body>
+</html>
