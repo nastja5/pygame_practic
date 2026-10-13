@@ -1,4 +1,4 @@
-/* Общие настройки для всей страницы */
+
 body {
     font-family: Arial, sans-serif;
     background-color: #353572;
@@ -8,7 +8,7 @@ body {
     text-align: center;
 }
 
-/* Оформление главного заголовка */
+
 h1 {
     color: #dcb153;
     margin-bottom: 5px;
