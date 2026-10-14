@@ -45,10 +45,10 @@ def funcStart():
     btnStartGame.show()
 
 def funcStartGame():
-    """Кнопка Start на экране ввода имени: без имени игру не начинаем."""
+    
     global errorUntil
     if not Nameinput.getText().strip():
-        errorUntil = pygame.time.get_ticks() + 2000   # показать ошибку 2 секунды
+        errorUntil = pygame.time.get_ticks() + 2000  # показать ошибку 
         return
     saveNameToVariable()
     startGame()
@@ -74,17 +74,16 @@ def saveNamesJson():
         json.dump(namesArray, f, ensure_ascii=False, indent=2)
 
 def saveRecord(name, score):
-    name = name or "Игрок"
+    name = name or "Player"
     try:
         r = requests.post(f"{SERVER}/scores", json={"player": name, "score": score}, timeout=2)
         print("POST /scores ->", r.status_code, r.text)
     except requests.RequestException as e:
-        print("Сервер недоступен, рекорд не сохранён:", e)
+        print("Server error, score not saved", e)
 
 serverOk = True
 
 def loadTop():
-    """Берём 10 лучших рекордов с сервера (GET /scores/top)."""
     global serverOk
     try:
         r = requests.get(f"{SERVER}/scores/top", timeout=2)
@@ -95,7 +94,6 @@ def loadTop():
         return []
 
 def funcScore():
-    """Кнопка Score в меню: берём топ с сервера и показываем экран."""
     global level, topData
     topData = loadTop()
     level = 6
@@ -105,7 +103,6 @@ def funcScore():
     btnBack.show()
 
 def funcBack():
-    """Кнопка Back: возвращаемся в меню."""
     global level
     level = 0
     btnBack.hide()
@@ -131,7 +128,6 @@ def funcNextLevel():
     startGame()
 
 def setPause(value):
-    """Включает/выключает паузу и показывает/прячет её кнопки."""
     global paused
     paused = value
     if paused:
@@ -142,7 +138,6 @@ def setPause(value):
         btnPauseExit.hide()
 
 def funcRetry():
-    """Try again: заново проходим текущий уровень."""
     global totalScore
     totalScore = levelStartScore       # очки за этот уровень сгорают
     btnRetry.hide()
@@ -151,24 +146,24 @@ def funcRetry():
 
 started = False
 def startGame():
-    global level, bgIndex, lastSwitch, pipesX, fishY, fishVel, started
-    global pipesPassed, pipeCounted, currentPipe, pipeMask, pipeRect, recordSaved
+    global level, bgIndex, Switchbg, pipesX, fishY, fishSpeedVert, started
+    global pipesPassed, pipeCompleted, nowPipe, pipeHitbox, pipeRect, recordSaved
     global levelStartScore
     level = 2
     bgIndex = 0
-
+    
     # выбираем трубу текущего уровня
-    currentPipe = pipeImages[gameLevel - 1]
-    pipeMask = pygame.mask.from_surface(currentPipe)
-    pipeRect = currentPipe.get_rect()
+    nowPipe = pipeImages[gameLevel - 1]
+    pipeHitbox = pygame.mask.from_surface(nowPipe)
+    pipeRect = nowPipe.get_rect()
 
     pipesX = float(1000)
     pipeRect.x = 1000
     fishY = float(START_Y)
-    fishVel = 0.0
-    lastSwitch = pygame.time.get_ticks()
+    fishSpeedVert = 0.0
+    Switchbg = pygame.time.get_ticks()
     pipesPassed = 0
-    pipeCounted = False
+    pipeCompleted = False
     btnStartGame.hide()
     Nameinput.hide()
     started = False
@@ -187,19 +182,20 @@ pipeLevel3 = pygame.image.load("pipes/PipesLeves3.png").convert_alpha()
 fish = pygame.image.load("fish.png").convert_alpha()
 fish = fish.subsurface(fish.get_bounding_rect()).copy()   # обрезка прозрачных полей
 w, h = fish.get_size()
-FISH_SCALE = 1.5                                            # во сколько раз увеличить
-fish = pygame.transform.scale(fish, (w * FISH_SCALE, h * FISH_SCALE))
+FISH_multiplier = 1.5                                            # во сколько раз увеличить
+fish = pygame.transform.scale(fish, (w * FISH_multiplier, h * FISH_multiplier))
 
 pipeImages = [pipeLevel1, pipeLevel2, pipeLevel3]   # труба для каждого уровня
-currentPipe = pipeImages[0]
-pipeRect = currentPipe.get_rect()
+nowPipe = pipeImages[0]
+pipeRect = nowPipe.get_rect()
 
 # 0 меню, 1 ввод имени, 2 игра, 3 экран смерти, 4 экран победы, 5 финальный экран, 6 таблица рекордов
 level = 0
 backgrounds = [background_1, background_2] #add more backgrounds if needed
 bgIndex = 0
-lastSwitch = 0
-SWITCH_DELAY = 1000
+Switchbg = 0
+SWITCH_DELAY = 1000 #for background switching in milliseconds
+#обьединить все кнопки эксит в одну
 
 btnStart = Button(screen, 300, 500, 270, 80, inactiveColour="#5A94C6", text="Start", onClick=funcStart)
 btnScore = Button(screen, 300, 300, 270, 80, inactiveColour="#5A94C6", text="Score", onClick=funcScore)
@@ -222,7 +218,7 @@ btnPauseExit = Button(screen, 300, 350, 270, 80, inactiveColour="#5A94C6", text=
 btnResume.hide()
 btnPauseExit.hide()
 
-# кнопки экрана смерти
+
 btnRetry = Button(screen, 300, 300, 270, 80, inactiveColour="#5A94C6", text="Try again", onClick=funcRetry)
 btnDieExit = Button(screen, 300, 400, 270, 80, inactiveColour="#5A94C6", text="Exit", onClick=quit)
 btnRetry.hide()
@@ -234,7 +230,7 @@ savedName = ""
 Nameinput.hide()
 btnStartGame.hide()
 
-#moving trubi
+
 clock = pygame.time.Clock()
 
 pipesX = float(1000)
@@ -243,12 +239,13 @@ FISH_X = 150
 START_Y = 300
 fishRect.x = FISH_X
 fishY = float(START_Y)
-fishVel = 0.0
-GRAVITY = 1800          # пикселей/сек²
-JUMP_SPEED = -550       # импульс вверх при каждом нажатии
+fishSpeedVert = 0.0
+GRAVITY = 1800          
+JUMP_SPEED = -550       
 SPEED = 1500
 
-pipeMask = pygame.mask.from_surface(currentPipe)
+#столкновение 
+pipeHitbox = pygame.mask.from_surface(nowPipe)
 fishMask = pygame.mask.from_surface(fish)
 
 
@@ -265,35 +262,35 @@ while running:
                 setPause(not paused)                 # Esc: включить/выключить паузу
             elif event.key == pygame.K_SPACE and level == 2 and not paused:
                 started = True
-                fishVel = JUMP_SPEED
+                fishSpeedVert = JUMP_SPEED
 
     if level == 2 and started and not paused:
         # труба
-        pipesX -= SPEED * dt
+        pipesX -= SPEED * dt #viena skorost
         if pipeRect.right < 0:
             pipesX = float(1000)
-            pipeCounted = False
+            pipeCompleted = False
         pipeRect.x = round(pipesX)
 
         # рыбка
-        fishVel += GRAVITY * dt
-        fishY += fishVel * dt
+        fishSpeedVert += GRAVITY * dt
+        fishY += fishSpeedVert * dt
         fishRect.y = round(fishY)
 
         # выход за экран
         if fishRect.bottom > 600 or fishRect.top < 0:
-            print("граница экрана", fishRect, fishVel)
+            print("граница экрана", fishRect, fishSpeedVert)
             level = 3
 
         # столкновение с трубой (по пикселям)
         offset = (pipeRect.x - fishRect.x, pipeRect.y - fishRect.y)
-        if fishMask.overlap(pipeMask, offset):
+        if fishMask.overlap(pipeHitbox, offset):
             print("труба", fishRect, pipeRect)
             level = 3
 
         # подсчёт пройденных труб
-        if level == 2 and not pipeCounted and pipeRect.right < fishRect.left:
-            pipeCounted = True
+        if level == 2 and not pipeCompleted and pipeRect.right < fishRect.right:
+            pipeCompleted = True
             pipesPassed += 1
             totalScore += POINTS_PER_PIPE[gameLevel - 1]
             if pipesPassed >= PIPES_TO_WIN:
@@ -312,16 +309,18 @@ while running:
         screen.blit(background_1, (0, 0))
     elif level == 1:
         screen.blit(background_2, (0, 0))
+
         if pygame.time.get_ticks() < errorUntil:
             errText = smallFont.render("Введите имя!", True, (255, 60, 60))
             screen.blit(errText, errText.get_rect(center=(500, 450)))
+            
     elif level == 2:
         now = pygame.time.get_ticks()
-        if not paused and now - lastSwitch >= SWITCH_DELAY:
+        if not paused and now - Switchbg >= SWITCH_DELAY:
             bgIndex = (bgIndex + 1) % len(backgrounds)
-            lastSwitch = now
+            Switchbg = now
         screen.blit(backgrounds[bgIndex], (0, 0))
-        screen.blit(currentPipe, pipeRect)
+        screen.blit(nowPipe, pipeRect)
         screen.blit(fish, fishRect)
         scoreText = font.render(str(totalScore), True, (255, 255, 255))
         screen.blit(scoreText, (20, 20))
@@ -359,3 +358,30 @@ while running:
     pygame.display.flip()
 
 pygame.quit()
+
+
+#чтобы активировать сервер:
+#1. открыть терминал#чтобы активировать сервер:
+#1. открыть терминал
+#2. перейти в папку с проектом
+#3. выполнить команду: source .venv/bin/activate
+#uvicorn server:app --reload
+#2. перейти в папку с проектом
+#3. выполнить команду: source .venv/bin/activate
+#uvicorn server:app --reload#чтобы активировать сервер:
+#1. открыть терминал
+#2. перейти в папку с проектом
+#3. выполнить команду: source .venv/bin/activate
+#uvicorn server:app --reload#чтобы активировать сервер:
+#1. открыть терминал
+#2. перейти в папку с проектом
+#3. выполнить команду: source .venv/bin/activate
+#uvicorn server:app --reload#чтобы активировать сервер:
+#1. открыть терминал
+#2. перейти в папку с проектом
+#3. выполнить команду: source .venv/bin/activate
+#uvicorn server:app --reload#чтобы активировать сервер:
+#1. открыть терминал
+#2. перейти в папку с проектом
+#3. выполнить команду: source .venv/bin/activate
+#uvicorn server:app --reload

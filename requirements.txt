@@ -1,0 +1,5 @@
+   fastapi
+   uvicorn
+   requests
+   pygame
+   pygame_widgets

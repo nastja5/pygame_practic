@@ -1,9 +1,14 @@
 import sqlite3
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from pathlib import Path
 
 app = FastAPI()
-DB = "game.db"
+@app.get("/hello")
+def hello():
+       return {"message": "Sveiki!"}
+
+DB = str(Path(__file__).parent.parent / "game.db")
 
 
 def db():
