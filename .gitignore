@@ -2,3 +2,4 @@
 /.vscode/
 game.db
 __pycache__/
+*.db

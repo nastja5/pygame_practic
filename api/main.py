@@ -1,47 +1,33 @@
-import sqlite3
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from pathlib import Path
+
+from api.db import get_connection
 
 app = FastAPI()
+
+
 @app.get("/hello")
 def hello():
-       return {"message": "Sveiki!"}
-
-DB = str(Path(__file__).parent.parent / "game.db")
-
-
-def db():
-    con = sqlite3.connect(DB)
-    con.row_factory = sqlite3.Row
-    return con
-
-
-# создаём таблицу, если её нет
-with db() as con:
-    con.execute("""CREATE TABLE IF NOT EXISTS scores (
-        player TEXT PRIMARY KEY,
-        score  INTEGER NOT NULL
-    )""")
+    return {"message": "Sveiki!"}
 
 
 class ScoreIn(BaseModel):
     player: str
-    score: int          # если пришёл текст вместо числа -> автоматически 422
+    score: int          # текст вместо числа -> автоматически 422
 
 
-@app.get("/scores/top")                    # GET: "дай мне" -> 200
+@app.get("/scores/top")
 def top_scores():
-    with db() as con:
+    with get_connection() as con:
         rows = con.execute(
             "SELECT player, score FROM scores ORDER BY score DESC LIMIT 10"
         ).fetchall()
     return [dict(r) for r in rows]
 
 
-@app.get("/scores/{player}")               # 404, если такого игрока нет
+@app.get("/scores/{player}")
 def get_score(player: str):
-    with db() as con:
+    with get_connection() as con:
         row = con.execute(
             "SELECT player, score FROM scores WHERE player = ?", (player,)
         ).fetchone()
@@ -50,15 +36,24 @@ def get_score(player: str):
     return dict(row)
 
 
-@app.post("/scores", status_code=201)      # POST: "возьми это" -> 201 Created
+@app.post("/scores", status_code=201)
 def add_score(data: ScoreIn):
     name = data.player.strip()
     if not name or data.score < 0:
         raise HTTPException(status_code=400, detail="Пустое имя или отрицательный счёт")
-    with db() as con:
-        row = con.execute("SELECT score FROM scores WHERE player = ?", (name,)).fetchone()
-        if row is None:
-            con.execute("INSERT INTO scores VALUES (?, ?)", (name, data.score))
-        elif data.score > row["score"]:    # обновляем, только если рекорд побит
-            con.execute("UPDATE scores SET score = ? WHERE player = ?", (data.score, name))
-    return {"player": name, "score": data.score}
+    with get_connection() as con:
+        row = con.execute(
+            "SELECT score FROM scores WHERE player = ?", (name,)
+        ).fetchone()
+        if row is None:                      # новый игрок -> добавляем
+            con.execute(
+                "INSERT INTO scores (player, score) VALUES (?, ?)",
+                (name, data.score),
+            )
+        elif data.score > row["score"]:      # рекорд побит -> обновляем
+            con.execute(
+                "UPDATE scores SET score = ? WHERE player = ?",
+                (data.score, name),
+            )
+    best = data.score if row is None else max(row["score"], data.score)
+    return {"player": name, "score": best}
