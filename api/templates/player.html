@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Профиль игрока: {{ player }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav>
+        <a href="/">TOP</a>
+        <a href="/rules.html">Noteikumi</a>
+    </nav>
+    <header>
+        <h1>Профиль игрока</h1>
+        <h2>Имя: {{ player }}</h2>
+    </header>
+    <main>
+        <p>Сыграно игр: {{ games }}</p>
+        <p>Лучший результат: {{ best }}</p>
+    </main>
+</body>
+</html>

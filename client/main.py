@@ -2,25 +2,43 @@ import pygame
 import pygame_widgets
 from pygame_widgets.button import Button
 from pygame_widgets.textbox import TextBox
-import json
-import requests
+
+
 import random
 
-SERVER = "http://localhost:8000"
+
+
+
+from pathlib import Path
+from game.constants import *
+from game.physics import FishBody, SharkBody
+from game.ray import RayAttack
+from game.scoring import pipe_points, ichor_points
+from client import api_client
+
 
 pygame.init()
+
+screen = pygame.display.set_mode((1000, 600))
+pygame.display.set_caption("Press fish") 
+
+ASSETS = Path(__file__).parent / "assets"
+
+
+
 
 font = pygame.font.SysFont("arial", 80)
 smallFont = pygame.font.SysFont("arial", 50)
 tableFont = pygame.font.SysFont("arial", 36)
 
-PIPES_TO_WIN = 10
+
 pipesPassed = 0
-pipeCounted = False   # чтобы одну трубу не засчитать несколько раз
+
 
 gameLevel = 1
 
-POINTS_PER_PIPE = [10, 25, 75]   # очки за трубу на уровнях 1, 2, 3
+
+
 totalScore = 0                # общий счёт за всю игру
 levelStartScore = 0           # счёт на момент начала уровня (для "Try again")
 
@@ -34,6 +52,71 @@ topData = []                  # список рекордов, полученн�
 tokenIn = ""                # токен после входа
 textErrorLogIn = "Input Name"              # текст ошибки входа
 
+
+class Fish:
+    def __init__(self, x):
+        self.image = pygame.image.load(ASSETS / "fish.png").convert_alpha()
+        self.image = self.image.subsurface(self.image.get_bounding_rect()).copy()
+        width, height = self.image.get_size()
+        self.image = pygame.transform.scale(
+            self.image, (int(width * 1.2), int(height * 1.2))
+        )
+
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.body = FishBody()
+        self.rect.y = round(self.body.y)
+        self.mask = pygame.mask.from_surface(self.image)
+
+    def update(self, dt):
+        self.body.update(dt)
+        self.rect.y = round(self.body.y)
+
+    def jump(self):
+        self.body.jump()
+
+    def reset(self):
+        self.body.reset()
+        self.rect.y = round(self.body.y)
+
+    def draw(self, surface):
+        surface.blit(self.image, self.rect)
+
+FishObj = Fish(150)
+
+class Shark:
+    def __init__ (self, x, y):
+
+        self.image = pygame.image.load(ASSETS / "Shark.png").convert_alpha()
+        self.image = self.image.subsurface(self.image.get_bounding_rect()).copy()
+        w, h = self.image.get_size()
+
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+
+        self.body = SharkBody(self.rect.height)
+        self.rect.y = round(self.body.y)
+        
+        
+        self.mask = pygame.mask.from_surface(self.image)
+        
+
+        
+
+    def moving(self, dt):
+        self.body.move(dt)
+        self.rect.y = round(self.body.y)
+
+
+    def draw(self, surface):
+        """Метод для отрисовки shark на экране"""
+        surface.blit(self.image, self.rect)
+
+    def reset(self):
+        self.body.reset()
+        self.rect.y = round(self.body.y)
+        
+SharkObj = Shark(800, 300)
 
 def funcStart():
     global level, gameLevel, totalScore, errorUntil
@@ -69,70 +152,31 @@ def funcLogIn(register):
     name = Nameinput.getText().strip()
     password = Passwinput.getText()
     if not name or not password:
-        showMessage("Введите имя и пароль!")
+        showMessage("Input name or password")
         return
-    body = {"name": name, "password": password}
-    try:
-        if register:
-            r = requests.post(f"{SERVER}/register", json=body, timeout=2)
-            if r.status_code != 201:
-                showMessage(r.json().get("detail", "Ошибка регистрации"))
-                return
-        r = requests.post(f"{SERVER}/login", json=body, timeout=2)
-        if r.status_code != 200:
-            showMessage(r.json().get("detail", "Ошибка входа"))
-            return
-    except requests.RequestException:
-        showMessage("Сервер недоступен")
+    token, error = api_client.login(name, password, register)
+    if error:
+        showMessage(error)
         return
-    tokenIn = r.json()["token"]
+    tokenIn = token
     Passwinput.setText("")
-    funcStartGame()          # ваша старая функция: сохранит имя и запустит игру
+    funcStartGame()
 
 def saveNameToVariable():
     global savedName
     savedName = Nameinput.getText().strip()
-    if not savedName:
-        return
-    namesArray.append(savedName)
-    saveNamesJson()
     Nameinput.setText("")
 
-def loadNamesJson():
-    try:
-        with open("templates/names.json", encoding="utf-8") as file:
-            return json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
 
-def saveNamesJson():
-    with open("templates/names.json", "w", encoding="utf-8") as f:
-        json.dump(namesArray, f, ensure_ascii=False, indent=2)
 
-def saveRecord(name, score):
-    name = name or "Player"
-    try:
-        r = requests.post(f"{SERVER}/scores", json={"player": name, "score": score},
-                  headers={"token": tokenIn}, timeout=2)
-        print("POST /scores ->", r.status_code, r.text)
-    except requests.RequestException as e:
-        print("Server error, score not saved", e)
+
+
 
 serverOk = True
 
-def loadTop():
-    global serverOk
-    try:
-        r = requests.get(f"{SERVER}/scores/top", timeout=2)
-        serverOk = True
-        return r.json() if r.status_code == 200 else []
-    except requests.RequestException:
-        serverOk = False
-        return []
-
 def funcScore():
-    global level, topData
-    topData = loadTop()
+    global level, topData, serverOk
+    topData, serverOk = api_client.load_top()
     level = 6
     btnStart.hide()
     btnScore.hide()
@@ -156,7 +200,7 @@ def showWinScreen():
         level = 5              # финальный экран с итоговым счётом
         btnNextLevel.hide()
     btnWinExit.show()
-    if gameLevel == 2:
+    if gameLevel == 3:
         btnBossFight.show()
 
 def funcNextLevel():
@@ -189,20 +233,21 @@ def funcRetry():
 inBoss = False
 started = False
 def startGame():
-    global level, bgIndex, Switchbg, pipesX, fishY, fishSpeedVert, started, inBoss
+    global level, bgIndex, Switchbg, pipesX, started, inBoss
     global pipesPassed, pipeCompleted, pipeRect, recordSaved
     global levelStartScore
     level = 2
     bgIndex = 0
 
+    FishObj.reset()
+
     pipesX = float(1000)
     pickPipe()
-    fishY = float(START_Y)
-    fishSpeedVert = 0.0
+    
     Switchbg = pygame.time.get_ticks()
     pipesPassed = 0
     pipeCompleted = False
-    btnStartGame.hide()
+
     Nameinput.hide()
     Passwinput.hide()
     btnLogin.hide()
@@ -230,10 +275,10 @@ def pickPipe(levelNum=None):
 def bossFightStart():
     global bgIndex, Switchbg, started, level, inBoss
     global pipesPassed, pipeCompleted, pipeRect, recordSaved
-    global fishY, fishSpeedVert, SharkSpeed
+
     global levelStartScore
-    global rayState, rayTimer
-    global bossHp, ichorTimer, burstLeft, burstTimer
+    
+    global ichorTimer, burstLeft, burstTimer
     bgIndex = 0
 
     level = 7
@@ -241,24 +286,23 @@ def bossFightStart():
 
     Switchbg = pygame.time.get_ticks()
 
-    fishY = float(START_Y)
-    fishSpeedVert = 0.0
-    fishRect.y = START_Y
-    sharkRect.x = 800
-    sharkRect.y = 300
-    SharkSpeed = 5
+    
+    SharkObj.rect.x = 800
+    SharkObj.reset()
+
+    FishObj.reset()
+
+    
 
     # сброс луча
-    rayState = "idle"
-    rayTimer = 0.0
+    rayAttack.reset()
 
-    bossHp = BOSS_MAX_HP
+    
     ichors.clear()
     ichorTimer = ICHOR_COOLDOWN   # первый залп сразу, как начнёшь играть
     burstLeft = 0
     burstTimer = 0.0
 
-    btnStartGame.hide()
     Nameinput.hide()
     Passwinput.hide()
     btnLogin.hide()
@@ -270,14 +314,15 @@ def bossFightStart():
     started = False
     recordSaved = False
     levelStartScore = totalScore
+    
     setPause(False)
 
 
 def startRayWarning():
     """Акула целится: фиксируем высоту и показываем предупреждающий луч."""
-    global rayState, rayTimer, rayRect, rayWarnImg, rayImg, rayMask
+    global rayRect, rayWarnImg, rayImg, rayMask
 
-    width = max(1, sharkRect.left)               # луч идёт от акулы до левого края
+    width = max(1, SharkObj.rect.left)               # луч идёт от акулы до левого края
     height = ray.get_height()
 
     rayWarnImg = pygame.transform.scale(rayFirst, (width, height)) #спрайт луча
@@ -285,11 +330,10 @@ def startRayWarning():
     rayMask = pygame.mask.from_surface(rayImg) #маска для луча
 
     rayRect = rayImg.get_rect()
-    rayRect.right = sharkRect.left
-    rayRect.centery = sharkRect.centery          # высота фиксируется в момент выстрела
+    rayRect.right = SharkObj.rect.left
+    rayRect.centery = SharkObj.rect.centery          # высота фиксируется в момент выстрела
     
-    rayState = "warn"
-    rayTimer = 0.0
+    
 
 
 def fireIchor():
@@ -307,76 +351,68 @@ def bossWin():
     btnWinExit.show()
 
 
+def update_fish(dt):
+    """Общая физика рыбки для уровней с игровым процессом"""
+    global level
+    
+    # 1. Применяем гравитацию
+    FishObj.update(dt)
+
+    # 2. Проверяем, не вылетела ли рыбка за экран (сверху или снизу)
+    if FishObj.rect.bottom > 600 or FishObj.rect.top < 0:
+        print("screen edge", FishObj.rect, FishObj.body.speed_y)
+        level = 3  # Переход на экран смерти
 
 
 
-screen = pygame.display.set_mode((1000, 600))
-pygame.display.set_caption("Press fish")
-
-BackStart = pygame.image.load("pipes/start.png").convert_alpha()
-
-background_1 = pygame.image.load("back_1.png").convert()
-background_2 = pygame.image.load("back_2.png").convert()
-dieScreen = pygame.image.load("DieScreen.jpg").convert()
-
-pipeLevel1 = pygame.image.load("pipes/Pipes_Level1.png").convert_alpha()
-
-Pipes_Level2_N1 = pygame.image.load("pipes/Pipes_Level2_N1.png").convert_alpha()
-Pipes_Level2_N2 = pygame.image.load("pipes/Pipes_Level2_N2.png").convert_alpha()
-Pipes_Level2_N3 = pygame.image.load("pipes/Pipes_Level2_N3.png").convert_alpha()
-
-Pipes_Level3_N1 = pygame.image.load("pipes/Pipes_Level3_N1.png").convert_alpha()
-Pipes_Level3_N2 = pygame.image.load("pipes/Pipes_Level3_N2.png").convert_alpha()
-Pipes_Level3_N3 = pygame.image.load("pipes/Pipes_Level3_N3.png").convert_alpha()
-Pipes_Level3_N4 = pygame.image.load("pipes/Pipes_Level3_N4.png").convert_alpha()
-
-fish = pygame.image.load("fish.png").convert_alpha()
-fish = fish.subsurface(fish.get_bounding_rect()).copy()   # обрезка прозрачных полей
-w, h = fish.get_size()
-FISH_multiplier = 1.2                                          # во сколько раз увеличить
-fish = pygame.transform.scale(fish, (w * FISH_multiplier, h * FISH_multiplier))
 
 
-#boss
-
-shark = pygame.image.load("pipes/Shark.png").convert_alpha()
-shark = shark.subsurface(shark.get_bounding_rect()).copy()
-w, h = shark.get_size()
 
 
-sharkRect = shark.get_rect()
-sharkRect.x = 800  # Начальная позиция X
-sharkRect.y = 300
-SharkSpeed = 5
+
+
+
+
+
+BackStart = pygame.image.load(ASSETS / "pipes/start.png").convert_alpha()
+icon = pygame.image.load(ASSETS / "pipes/Icon.png") 
+icon = icon.subsurface(icon.get_bounding_rect()).copy()
+pygame.display.set_icon(icon)
+
+background_1 = pygame.image.load(ASSETS / "back_1.png").convert()
+background_2 = pygame.image.load(ASSETS / "back_2.png").convert()
+dieScreen = pygame.image.load(ASSETS / "DieScreen.jpg").convert()
+
+pipeLevel1 = pygame.image.load(ASSETS / "pipes/Pipes_Level1.png").convert_alpha()
+
+Pipes_Level2_N1 = pygame.image.load(ASSETS / "pipes/Pipes_Level2_N1.png").convert_alpha()
+Pipes_Level2_N2 = pygame.image.load(ASSETS / "pipes/Pipes_Level2_N2.png").convert_alpha()
+Pipes_Level2_N3 = pygame.image.load(ASSETS / "pipes/Pipes_Level2_N3.png").convert_alpha()
+
+Pipes_Level3_N1 = pygame.image.load(ASSETS / "pipes/Pipes_Level3_N1.png").convert_alpha()
+Pipes_Level3_N2 = pygame.image.load(ASSETS / "pipes/Pipes_Level3_N2.png").convert_alpha()
+Pipes_Level3_N3 = pygame.image.load(ASSETS / "pipes/Pipes_Level3_N3.png").convert_alpha()
+Pipes_Level3_N4 = pygame.image.load(ASSETS / "pipes/Pipes_Level3_N4.png").convert_alpha()
+
+
 
 #луч
 
-ray = pygame.image.load("pipes/ray.png").convert_alpha()
+ray = pygame.image.load(ASSETS / "pipes/ray.png").convert_alpha()
 ray = ray.subsurface(ray.get_bounding_rect()).copy()
 
-rayFirst = pygame.image.load("pipes/rayFirst.png").convert_alpha()
+rayFirst = pygame.image.load(ASSETS / "pipes/rayFirst.png").convert_alpha()
 rayFirst = rayFirst.subsurface(rayFirst.get_bounding_rect()).copy()
 
-RAY_COOLDOWN = 1.0   # пауза между атаками, сек
-RAY_WARN = 2.0       # сколько висит предупреждение, сек
-RAY_FIRE = 1.0       # сколько живёт настоящий луч, сек
 
-BOSS_MAX_HP = 100
-ICHOR_DAMAGE = 15
-ICHOR_COUNT = 5          # всего пуль в залпе
-ICHOR_COOLDOWN = 2.0     # секунд между залпами
-ICHOR_SPEED = 900        # пикселей в секунду
-ICHOR_BURST_COUNT = 5    # сколько пуль в очереди
-ICHOR_BURST_DELAY = 0.08 # задержка между пулями в секундах
 burstLeft = 0            # сколько пуль осталось выпустить в текущей очереди
 burstTimer = 0.0
 
-bossHp = BOSS_MAX_HP
+
 ichors = []              # летящие пули
 ichorTimer = 0.0
 
-rayState = "idle"    # "idle" - ждём, "warn" - предупреждение, "fire" - настоящий луч
-rayTimer = 0.0
+rayAttack = RayAttack()
 rayRect = pygame.Rect(0, 0, 0, 0)
 rayWarnImg = rayFirst
 rayImg = ray
@@ -384,13 +420,13 @@ rayMask = pygame.mask.from_surface(ray)
 
 
 #пуля
-Ichor = pygame.image.load("pipes/Ichor.png").convert_alpha()
+Ichor = pygame.image.load(ASSETS / "pipes/Ichor.png").convert_alpha()
 Ichor = Ichor.subsurface(Ichor.get_bounding_rect()).copy()
 
 
 
               #level1        #level2                                                #level3
-pipeImages = [[pipeLevel1],[Pipes_Level2_N1, Pipes_Level2_N2, Pipes_Level2_N3]]#,[Pipes_Level3_N1, Pipes_Level3_N2, Pipes_Level3_N3, Pipes_Level3_N4]]
+pipeImages = [[pipeLevel1],[Pipes_Level2_N1, Pipes_Level2_N2, Pipes_Level2_N3],[Pipes_Level3_N1, Pipes_Level3_N2, Pipes_Level3_N3, Pipes_Level3_N4]]
 nowPipe = pipeImages[0][0]
 pipeRect = nowPipe.get_rect()
 
@@ -402,41 +438,42 @@ Switchbg = 0
 SWITCH_DELAY = 1000 #for background switching in milliseconds
 #обьединить все кнопки эксит в одну
 
-btnStart = Button(screen, 300, 500, 270, 80, inactiveColour="#5A94C6", text="Start", onClick=funcStart)
-btnScore = Button(screen, 300, 300, 270, 80, inactiveColour="#5A94C6", text="Score", onClick=funcScore)
-btnExit = Button(screen, 300, 400, 270, 80, inactiveColour="#5A94C6", text="Exit", onClick=quit)
-btnStartGame = Button(screen, 300, 200, 270, 80, inactiveColour="#5A94C6", text="Start", onClick=funcStartGame)
+btnStart = Button(screen, 417, 339, 150, 50, inactiveColour="#F8D96CF2", text="Start", onClick=funcStart)
+btnScore = Button(screen, 417, 424, 150, 50, inactiveColour="#F8D96CF2", text="Score", onClick=funcScore)
+btnExit = Button(screen, 417, 502, 150, 50, inactiveColour="#F8D96CF2", text="Exit", onClick=quit)
+
 
 # кнопка возврата из таблицы рекордов
-btnBack = Button(screen, 300, 500, 270, 80, inactiveColour="#5A94C6", text="Back", onClick=funcBack)
+btnBack = Button(screen, 350, 500, 270, 80, inactiveColour="#80B9EB39", text="Back", onClick=funcBack)
 btnBack.hide()
 
 # кнопки экрана победы
-btnNextLevel = Button(screen, 300, 300, 270, 80, inactiveColour="#5A94C6", text="Next level", onClick=funcNextLevel)
-btnWinExit = Button(screen, 300, 400, 270, 80, inactiveColour="#5A94C6", text="Exit", onClick=quit)
+btnNextLevel = Button(screen, 350, 300, 270, 80, inactiveColour="#80B9EB39", text="Next level", onClick=funcNextLevel)
+btnWinExit = Button(screen, 350, 400, 270, 80, inactiveColour="#80B9EB39", text="Exit", onClick=quit)
 btnNextLevel.hide()
 btnWinExit.hide()
 
 # кнопки паузы
-btnResume = Button(screen, 300, 250, 270, 80, inactiveColour="#5A94C6", text="Continue", onClick=lambda: setPause(False))
-btnPauseExit = Button(screen, 300, 350, 270, 80, inactiveColour="#5A94C6", text="Exit", onClick=quit)
+btnResume = Button(screen, 350, 250, 270, 80, inactiveColour="#80B9EB39", text="Continue", onClick=lambda: setPause(False))
+btnPauseExit = Button(screen, 350, 350, 270, 80, inactiveColour="#80B9EB39", text="Exit", onClick=quit)
 btnResume.hide()
 btnPauseExit.hide()
 
-btnRetry = Button(screen, 300, 300, 270, 80, inactiveColour="#5A94C6", text="Try again", onClick=funcRetry)
-btnDieExit = Button(screen, 300, 400, 270, 80, inactiveColour="#5A94C6", text="Exit", onClick=quit)
+btnRetry = Button(screen, 300, 300, 270, 80, inactiveColour="#0078D7", text="Try again", onClick=funcRetry)
+btnDieExit = Button(screen, 300, 500, 270, 80, inactiveColour="#0078D7", text="Exit", onClick=quit)
 btnRetry.hide()
 btnDieExit.hide()
 
-Passwinput = TextBox(screen, 300, 255, 270, 80, placeholderText='Введите пароль', fontSize=25)
-btnLogin = Button(screen, 300, 350, 270, 80, inactiveColour="#5A94C6",
+Passwinput = TextBox(screen, 350, 255, 270, 80, placeholderText='Enter Pasword', fontSize=25)
+
+btnLogin = Button(screen, 350, 350, 270, 80, inactiveColour="#80B9EB39",
                   text="Login", onClick=lambda: funcLogIn(False))
-btnRegister = Button(screen, 300, 445, 270, 80, inactiveColour="#5A94C6",
+btnRegister = Button(screen, 350, 445, 270, 80, inactiveColour="#80B9EB39",
                      text="Register", onClick=lambda: funcLogIn(True))
 
 
 
-btnBossFight = Button(screen, 300, 500, 270, 80, inactiveColour="#5A94C6", text="Boss Fight", onClick=bossFightStart)
+btnBossFight = Button(screen, 350, 500, 270, 80, inactiveColour="#80B9EB39", text="Boss Fight", onClick=bossFightStart)
 btnBossFight.hide()
 
 
@@ -447,30 +484,24 @@ Passwinput.hide()
 btnLogin.hide()
 btnRegister.hide()
 
-Nameinput = TextBox(screen, 300, 160, 270, 80,placeholderText='Введите имя', fontSize=25)
-namesArray = loadNamesJson()
+Nameinput = TextBox(screen, 350, 160, 270, 80,placeholderText='Enter Name:', fontSize=25)
+
 savedName = ""
 Nameinput.hide()
-btnStartGame.hide()
+
 
 
 clock = pygame.time.Clock()
 
 pipesX = float(1000)
-fishRect = fish.get_rect()
-FISH_X = 150
-START_Y = 300
-fishRect.x = FISH_X
-fishY = float(START_Y)
-fishSpeedVert = 0.0
-GRAVITY = 1800
-JUMP_SPEED = -550
-SPEED = 1000
+
+pressSpaceText = smallFont.render("Press Space to start", "#0C162F", True)
+
+
 
 #столкновение
 pipeHitbox = pygame.mask.from_surface(nowPipe) #!!!!!!!!!!1переименовать в хитбокс
-fishMask = pygame.mask.from_surface(fish)
-sharkMask = pygame.mask.from_surface(shark)
+
 ichorMask = pygame.mask.from_surface(Ichor)
 
 
@@ -486,14 +517,16 @@ while running:
             if event.key == pygame.K_ESCAPE and level in (2, 7):
                 setPause(not paused)
             elif event.key == pygame.K_SPACE and level in (2, 7) and not paused:
+                
+
                 started = True
-                fishSpeedVert = JUMP_SPEED
+                FishObj.jump()
 
 
     # ---------- обновление: уровни с трубами ----------
     if level == 2 and started and not paused:
         # труба
-        pipesX -= SPEED * dt #viena skorost
+        pipesX -= PIPE_SPEED * dt #viena skorost
         if pipeRect.right < 0:
             pipesX = float(1000)
             pipeCompleted = False
@@ -501,62 +534,38 @@ while running:
         pipeRect.x = round(pipesX)
 
         # рыбка
-        fishSpeedVert += GRAVITY * dt
-        fishY += fishSpeedVert * dt
-        fishRect.y = round(fishY)
-
-        # выход за экран fish
-        if fishRect.bottom > 600 or fishRect.top < 0:
-            print("граница экрана", fishRect, fishSpeedVert)
-            level = 3
+        update_fish(dt)
 
         # столкновение с трубой (по пикселям)
-        offset = (pipeRect.x - fishRect.x, pipeRect.y - fishRect.y)
-        if fishMask.overlap(pipeHitbox, offset):
-            print("труба", fishRect, pipeRect)
+        offset = (pipeRect.x - FishObj.rect.x, pipeRect.y - FishObj.rect.y)
+        if FishObj.mask.overlap(pipeHitbox, offset):
+            print("pipe", FishObj.rect, pipeRect)
             level = 3
 
         # подсчёт пройденных труб
-        if level == 2 and not pipeCompleted and pipeRect.right < fishRect.right:
+        if level == 2 and not pipeCompleted and pipeRect.right < FishObj.rect.right:
             pipeCompleted = True
             pipesPassed += 1
-            totalScore += POINTS_PER_PIPE[gameLevel - 1]
+            totalScore += pipe_points(gameLevel)
             if pipesPassed >= PIPES_TO_WIN:
                 showWinScreen()
 
     # ---------- обновление: босс ----------
     if level == 7 and started and not paused:
         # акула
-        sharkRect.y += SharkSpeed
-        if sharkRect.bottom >= 600 or sharkRect.top <= 0:
-            SharkSpeed = -SharkSpeed
+        SharkObj.moving(dt)
 
         # рыбка
-        fishSpeedVert += GRAVITY * dt
-        fishY += fishSpeedVert * dt
-        fishRect.y = round(fishY)
-
-        # выход за экран fish
-        if fishRect.bottom > 600 or fishRect.top < 0:
-            print("граница экрана", fishRect, fishSpeedVert)
-            level = 3
+        update_fish(dt)
 
         # луч
-        rayTimer += dt
-        if rayState == "idle":
-            if rayTimer >= RAY_COOLDOWN:
-                startRayWarning()                # idle -> warn
-        elif rayState == "warn":
-            if rayTimer >= RAY_WARN:
-                rayState = "fire"                # warn -> fire
-                rayTimer = 0.0
-        elif rayState == "fire":
-            offset = (rayRect.x - fishRect.x, rayRect.y - fishRect.y)
-            if fishMask.overlap(rayMask, offset):
-                level = 3                        # попал под настоящий луч
-            if rayTimer >= RAY_FIRE:
-                rayState = "idle"                # fire -> idle
-                rayTimer = 0.0
+        if rayAttack.update(dt) == "warn":
+            startRayWarning()
+
+        if rayAttack.state == "fire":
+            offset = (rayRect.x - FishObj.rect.x, rayRect.y - FishObj.rect.y)
+            if FishObj.mask.overlap(rayMask, offset):
+                level = 3
 
         ichorTimer += dt
         if ichorTimer >= ICHOR_COOLDOWN:
@@ -569,8 +578,8 @@ while running:
             if burstTimer >= ICHOR_BURST_DELAY:
                 burstTimer = 0.0
                 r = Ichor.get_rect()
-                r.left = fishRect.right
-                r.centery = fishRect.centery
+                r.left = FishObj.rect.right
+                r.centery = FishObj.rect.centery
                 ichors.append({"x": float(r.x), "rect": r})
                 burstLeft -= 1
 
@@ -580,18 +589,20 @@ while running:
             if b["rect"].left > 1000:          # улетела за экран
                 ichors.remove(b)
                 continue
-            offset = (sharkRect.x - b["rect"].x, sharkRect.y - b["rect"].y)
-            if ichorMask.overlap(sharkMask, offset):   # попала в акулу
+            offset = (SharkObj.rect.x - b["rect"].x, SharkObj.rect.y - b["rect"].y)
+            if ichorMask.overlap(SharkObj.mask, offset):   # попала в акулу
                 ichors.remove(b)
-                bossHp -= ICHOR_DAMAGE
-                if bossHp <= 0:
-                    bossHp = 0
+                SharkObj.body.hp -= ICHOR_DAMAGE
+                totalScore += ichor_points(b["rect"].centery,SharkObj.rect.centery,SharkObj.rect.height,)
+                if SharkObj.body.hp <= 0:
+                    SharkObj.body.hp = 0
                     bossWin()
                     break
 
+
     # сохраняем рекорд один раз: при смерти (3), победе на уровне (4) или конце игры (5)
     if level in (3, 4, 5) and not recordSaved:
-        saveRecord(savedName, totalScore)
+        api_client.save_score(tokenIn, totalScore)
         recordSaved = True
         if level == 3:
             btnRetry.show()
@@ -605,22 +616,30 @@ while running:
 
         screen.blit(background_2, (0, 0))
         if pygame.time.get_ticks() < errorUntil:
-            errText = smallFont.render(textErrorLogIn, True, (255, 60, 60))
+            errText = smallFont.render(textErrorLogIn, True, "#0C162F")
             screen.blit(errText, errText.get_rect(center=(500, 100)))
 
 
     elif level == 2:
         now = pygame.time.get_ticks()
+        
+
         if not paused and now - Switchbg >= SWITCH_DELAY:
             bgIndex = (bgIndex + 1) % len(backgrounds)
             Switchbg = now
         screen.blit(backgrounds[bgIndex], (0, 0))
         screen.blit(nowPipe, pipeRect)
-        screen.blit(fish, fishRect)
-        scoreText = font.render(str(totalScore), True, (255, 255, 255))
+
+        FishObj.draw(screen)
+
+        scoreText = font.render(str(totalScore), True,"#0C162F")
         screen.blit(scoreText, (20, 20))
+
+        if not started and not paused:
+            screen.blit(pressSpaceText, pressSpaceText.get_rect(center=(500, 150)))
+        
         if paused:
-            pauseText = font.render("pause", True, (255, 255, 255))
+            pauseText = font.render("pause", True ,"#0C162F")
             screen.blit(pauseText, pauseText.get_rect(center=(500, 150)))
 
 
@@ -630,53 +649,60 @@ while running:
     elif level == 4:
         screen.blit(background_1, (0, 0))
 
-        winText = font.render("win", True, (255, 255, 255))
-        #screen.blit(winText, winText.get_rect(center=(500, 120)))
+        winText = font.render("win", True,"#0C162F")
+        
 
-        pointsText = font.render(f"punkti: {totalScore}", True, (255, 255, 255))
-        #screen.blit(pointsText, pointsText.get_rect(center=(500, 220)))
+        pointsText = font.render(f"punkti: {totalScore}", True,"#0C162F")
+        
 
     elif level == 5:
         screen.blit(background_1, (0, 0))
-        winText = font.render("spele beigt", True, (255, 255, 255))
+        winText = font.render("spele beigt", True,"#0C162F")
         screen.blit(winText, winText.get_rect(center=(500, 120)))
-        totalText = font.render(f"all punkti: {totalScore}", True, (255, 255, 255))
+        totalText = font.render(f"all punkti: {totalScore}", True,"#0C162F")
         screen.blit(totalText, totalText.get_rect(center=(500, 250)))
     elif level == 6:
         screen.blit(background_1, (0, 0))
-        title = smallFont.render("TOP 10", True, (255, 255, 255))
+        title = smallFont.render("TOP 10", True,"#0C162F")
         screen.blit(title, title.get_rect(center=(500, 40)))
         if not topData:
             msg = "No records yet" if serverOk else "Server offline"
-            empty = tableFont.render(msg, True, (255, 255, 255))
+            empty = tableFont.render(msg, True,"#0C162F")
             screen.blit(empty, empty.get_rect(center=(500, 250)))
         for i, row in enumerate(topData):
-            line = tableFont.render(f"{i + 1}. {row['player']} - {row['score']}", True, (255, 255, 255))
+            line = tableFont.render(f"{i + 1}. {row['player']} - {row['score']}", True,"#0C162F")
             screen.blit(line, (300, 90 + i * 40))
 
 
 
     elif level == 7:
         screen.blit(background_1, (0, 0))
+
+        SharkObj.draw(screen)
         # луч рисуем до акулы, чтобы акула была сверху
-        if rayState == "warn":
+        if rayAttack.state == "warn":
             screen.blit(rayWarnImg, rayRect)
-        elif rayState == "fire":
+        elif rayAttack.state == "fire":
             screen.blit(rayImg, rayRect)
-        screen.blit(shark, sharkRect)
+
+        
         for b in ichors:
             screen.blit(Ichor, b["rect"])
 
         # полоска HP босса
         pygame.draw.rect(screen, (60, 60, 60), (550, 20, 400, 25))
-        pygame.draw.rect(screen, (220, 40, 40), (550, 20, 400 * bossHp / BOSS_MAX_HP, 25))
+        pygame.draw.rect(screen, (220, 40, 40), (550, 20, 400 * SharkObj.body.hp / BOSS_MAX_HP, 25))
         pygame.draw.rect(screen, (255, 255, 255), (550, 20, 400, 25), 2)
 
-        screen.blit(fish, fishRect)
-        scoreText = font.render(str(totalScore), True, (255, 255, 255))
+        FishObj.draw(screen)
+        scoreText = font.render(str(totalScore), True,"#0C162F")
         screen.blit(scoreText, (20, 20))
+
+        if not started and not paused:
+            screen.blit(pressSpaceText, pressSpaceText.get_rect(center=(500, 150)))
+        
         if paused:
-            pauseText = font.render("pause", True, (255, 255, 255))
+            pauseText = font.render("pause", True,"#0C162F")
             screen.blit(pauseText, pauseText.get_rect(center=(500, 150)))
 
 
@@ -685,9 +711,9 @@ while running:
 
 pygame.quit()
 
-add new Pipes png and they can change random, add token and password to login and register, add boss fight with shark and ray attack
 
 #чтобы активировать сервер:
 #1. открыть терминал
 #2. перейти в папку с проектом
 #3. выполнить команду: .venv/bin/python -m uvicorn api.main:app --reload
+
