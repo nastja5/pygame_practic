@@ -1,25 +1,43 @@
-<nav>
-  <a href="leaderboard.html" class="rules-link">TOP</a>
-
-</nav>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Press Fish Rulles</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <nav>
+        <a href="{{ url_for('leaderboard') }}" class="links">TOP</a>
+    </nav>
+    <title>Press Fish Rules</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
 </head>
 <body>
 
     <header>
-        <h1>Rulles:</h1>
+        <h1>Rules:</h1>
     </header>
 
     <main>
+            <section class="rules-section">
+                <p>1. Log in to your account to start the game.</p>
+                <p>2. Swim (jump) through the pipes to avoid dying (and to prevent your System32 folder from being deleted).</p>
+                <p>3. The game consists of 3 levels, with the pipes becoming increasingly difficult in each subsequent level.</p>
+                <p>4. You earn points for passing through each pipe:<br>
+                    Level 1 – 10 points<br>
+                    Level 2 – 25 points<br>
+                    Level 3 – 75 points
+                </p>
+                <p>5. At the end of all the levels, there is a boss fight against a shark with 2,500 HP (if you lose, you will be sent back to the beginning of Level 3).</p>
+                <p>6. You can fire bullets at the shark, with each hit dealing 15 damage. To earn more points, aim for the center of the shark.</p>
+                <p>7. To win, you must complete all levels and defeat the shark boss.</p>
+                <p>8. You can die by: touching a pipe, getting hit by the shark's beam, or touching the edge of the screen.</p>
+            </section>
+    </main>
+    <header>
+        <h1>Controls:</h1>
+    </header>
+    <main>
         <section>
-            <p>1. nanannaa <br> 2. mndmndfnmnmdf <br> 3. kdfjgkdjf</p>
-
+            <h3>Spacebar - Jump</h3>
+            <h3>Esc - Pause</h3>
         </section>
     </main>
 </body>

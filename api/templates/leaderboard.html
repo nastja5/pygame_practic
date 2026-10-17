@@ -1,36 +1,42 @@
-<nav>
-
-  <a href="rules.html" class="rules-link">Noteikumi</a> 
-</nav>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <nav>
+        <a href="{{ url_for('rules') }}" class="links">Rules</a> 
+    </nav>
     <title>Press Fish Leaderboard</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
 </head>
 <body>
-    
     <header>
-        <h1>TOP 5</h1>
-        <h2># Spēlētājs Punkti</h2>
+        <h1>Press Fish</h1>
+        <h2>TOP 10</h2>
     </header>
-    <ul id="list"></ul>
-    <script>
-        fetch("names.json")
-        .then(response => response.json())
-        .then(names => {
-            const list = document.getElementById("list");
-            names.forEach(name => {
-                const li = document.createElement("li");
-                li.textContent = name;
-                list.appendChild(li);
-            });
-        })
-      .catch(() => {
-        document.getElementById("list").textContent = "dont have names.json";
-      });
-    </script>
+    <table class = "leaderboard-table">
+        <thead>
+                <tr>
+                    <th class="col-rank">#</th>
+                    <th class="col-player">Spēlētājs</th>
+                    <th class="col-score">Punkti</th>
+                </tr>
+            </thead>
+            <tbody> 
+                {% for row in rows %}
+                <tr>
+                    <td class="col-rank">{{ loop.index }}</td>
+                    <td class="col-player">
+                        <a href="{{ url_for('player_profile', name=row.player) }}" class = "links">{{ row.player }}</a>
+                    </td>
+                    <td class="col-score">{{ row.score }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3" class="no-data">Пока нет результатов</td>
+                </tr>
+              {% endfor %}
+        </tbody>
+    </table>
 </body>
 </html>

@@ -28,7 +28,7 @@ class UserIn(BaseModel):
 
 class ScoreIn(BaseModel):
     score: int              # имени нет: его определяет токен
-
+    boss_beaten: bool = False
 
 def player_by_token(conn, token):
     """Возвращает имя игрока по токену или бросает 401."""
@@ -62,12 +62,15 @@ def rules(request: Request):
 def player_profile(request: Request, name: str):
     """HTML-страница профиля игрока со статистикой."""
     with get_connection() as conn:
+
         row = conn.execute(
-            "SELECT COUNT(*) AS games, MAX(score) AS best "
+            "SELECT COUNT(*) AS total, "
+            "COALESCE(SUM(boss_beaten), 0) AS games, "
+            "MAX(score) AS best "
             "FROM scores WHERE player = ?", (name,)
         ).fetchone()
 
-    if row["games"] == 0:
+    if row["total"] == 0:
         raise HTTPException(status_code=404, detail="There is no such player")
 
     return templates.TemplateResponse(
@@ -118,8 +121,8 @@ def add_score(item: ScoreIn, token: str | None = Header(default=None)):
     with get_connection() as conn:
         name = player_by_token(conn, token)
         conn.execute(
-            "INSERT INTO scores (player, score) VALUES (?, ?)",
-            (name, item.score),
+            "INSERT INTO scores (player, score, boss_beaten) VALUES (?, ?, ?)",
+            (name, item.score, int(item.boss_beaten)),
         )
     return {"player": name, "score": item.score}
 
@@ -138,13 +141,14 @@ def top_scores():
 def player_stats(name: str):
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT COUNT(*) AS games, MAX(score) AS best "
+            "SELECT COUNT(*) AS total, "
+            "COALESCE(SUM(boss_beaten), 0) AS games, "
+            "MAX(score) AS best "
             "FROM scores WHERE player = ?", (name,)
         ).fetchone()
-    if row["games"] == 0:
+    if row["total"] == 0:
         raise HTTPException(status_code=404, detail="There is no such player")
     return {"player": name, "games": row["games"], "best": row["best"]}
-
 
 # Запуск (из корня проекта):
 # source .venv_server/bin/activate

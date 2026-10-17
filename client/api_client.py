@@ -1,3 +1,4 @@
+#api_client
 import requests
 
 SERVER = "http://localhost:8000"
@@ -19,9 +20,9 @@ def login(name, password, register=False):
         return None, "Server unavailable"
 
 
-def save_score(token, score):
+def save_score(token, score, boss_beaten=False):
     try:
-        r = requests.post(f"{SERVER}/scores", json={"score": score},
+        r = requests.post(f"{SERVER}/scores", json={"score": score, "boss_beaten": boss_beaten},
                           headers={"token": token}, timeout=2)
         print("POST /scores ->", r.status_code, r.text)
     except requests.RequestException as e:

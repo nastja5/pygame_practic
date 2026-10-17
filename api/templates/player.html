@@ -2,21 +2,31 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Профиль игрока: {{ player }}</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player profile: {{ player }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
 </head>
 <body>
     <nav>
-        <a href="/">TOP</a>
-        <a href="/rules.html">Noteikumi</a>
+        <a href="{{ url_for('leaderboard') }}" class="links">TOP</a>
+        <a href="{{ url_for('rules') }}" class="links">RULES</a>
     </nav>
-    <header>
-        <h1>Профиль игрока</h1>
-        <h2>Имя: {{ player }}</h2>
+
+    <header class="profile-header">
+        <h1>Player Profile</h1>
+        <h2>Name: {{ player }}</h2>
     </header>
-    <main>
-        <p>Сыграно игр: {{ games }}</p>
-        <p>Лучший результат: {{ best }}</p>
+
+    <main class="profile-container">
+        <div class="profile-card">
+            <span class="label">Beat the boss:</span>
+            <span class="value">{{ games }}</span>
+        </div>
+        <div class="profile-card">
+            <span class="label">Best result:</span>
+            <span class="value">{{ best }}</span>
+        </div>
     </main>
+
 </body>
 </html>

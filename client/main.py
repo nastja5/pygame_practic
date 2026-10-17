@@ -42,6 +42,8 @@ gameLevel = 1
 totalScore = 0                # общий счёт за всю игру
 levelStartScore = 0           # счёт на момент начала уровня (для "Try again")
 
+level3StartScore = 0
+
 recordSaved = False           # чтобы рекорд сохранялся один раз за игру
 
 paused = False                # пауза включена или нет
@@ -221,13 +223,15 @@ def setPause(value):
         btnPauseExit.hide()
 
 def funcRetry():
-    global totalScore
-    totalScore = levelStartScore       # очки за этот уровень сгорают
+    global totalScore, gameLevel
     btnRetry.hide()
     btnDieExit.hide()
-    if inBoss:                         # умерли на боссе -> заново босс
-        bossFightStart()
-    else:                              # иначе обычный уровень с трубами
+    if inBoss:                         # умерли на боссе -> назад в начало 3 уровня
+        gameLevel = 3
+        totalScore = level3StartScore  # очки за 3 уровень и босса сгорают
+        startGame()
+    else:                              # иначе заново текущий обычный уровень
+        totalScore = levelStartScore
         startGame()
 
 inBoss = False
@@ -235,9 +239,13 @@ started = False
 def startGame():
     global level, bgIndex, Switchbg, pipesX, started, inBoss
     global pipesPassed, pipeCompleted, pipeRect, recordSaved
-    global levelStartScore
+    global levelStartScore, level3StartScore
     level = 2
     bgIndex = 0
+
+    levelStartScore = totalScore
+    if gameLevel == 3:
+        level3StartScore = totalScore
 
     FishObj.reset()
 
@@ -382,6 +390,7 @@ pygame.display.set_icon(icon)
 background_1 = pygame.image.load(ASSETS / "back_1.png").convert()
 background_2 = pygame.image.load(ASSETS / "back_2.png").convert()
 dieScreen = pygame.image.load(ASSETS / "DieScreen.jpg").convert()
+dieScreen = pygame.transform.scale(dieScreen, (SCREEN_W, SCREEN_H))
 
 pipeLevel1 = pygame.image.load(ASSETS / "pipes/Pipes_Level1.png").convert_alpha()
 
@@ -473,7 +482,7 @@ btnRegister = Button(screen, 350, 445, 270, 80, inactiveColour="#80B9EB39",
 
 
 
-btnBossFight = Button(screen, 350, 500, 270, 80, inactiveColour="#80B9EB39", text="Boss Fight", onClick=bossFightStart)
+btnBossFight = Button(screen, 350, 300, 270, 80, inactiveColour="#80B9EB39", text="Boss Fight", onClick=bossFightStart)
 btnBossFight.hide()
 
 
@@ -600,9 +609,10 @@ while running:
                     break
 
 
-    # сохраняем рекорд один раз: при смерти (3), победе на уровне (4) или конце игры (5)
-    if level in (3, 4, 5) and not recordSaved:
-        api_client.save_score(tokenIn, totalScore)
+    # Сохраняем результат один раз при смерти или завершении игры.
+    if level in (3,5) and not recordSaved:
+        bossBeaten = (level == 5 and inBoss)      # финал именно после босса
+        api_client.save_score(tokenIn, totalScore, bossBeaten)
         recordSaved = True
         if level == 3:
             btnRetry.show()
@@ -652,15 +662,23 @@ while running:
         winText = font.render("win", True,"#0C162F")
         
 
-        pointsText = font.render(f"punkti: {totalScore}", True,"#0C162F")
+        pointsText = font.render(f"points: {totalScore}", True,"#0C162F")
         
 
     elif level == 5:
         screen.blit(background_1, (0, 0))
-        winText = font.render("spele beigt", True,"#0C162F")
-        screen.blit(winText, winText.get_rect(center=(500, 120)))
-        totalText = font.render(f"all punkti: {totalScore}", True,"#0C162F")
-        screen.blit(totalText, totalText.get_rect(center=(500, 250)))
+        
+        # Если победили босса:
+        if inBoss:
+            winText = font.render("You win!", True, "#0C162F")
+            screen.blit(winText, winText.get_rect(center=(500, 150)))
+            
+            totalText = smallFont.render(f"All points: {totalScore}", True, "#0C162F")
+            screen.blit(totalText, totalText.get_rect(center=(500, 250)))
+        else:
+            # Обычный финальный экран (без босса)
+            totalText = font.render(f"All points: {totalScore}", True, "#0C162F")
+            screen.blit(totalText, totalText.get_rect(center=(500, 250)))
     elif level == 6:
         screen.blit(background_1, (0, 0))
         title = smallFont.render("TOP 10", True,"#0C162F")
@@ -716,4 +734,3 @@ pygame.quit()
 #1. открыть терминал
 #2. перейти в папку с проектом
 #3. выполнить команду: .venv/bin/python -m uvicorn api.main:app --reload
-
