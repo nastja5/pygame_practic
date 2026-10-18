@@ -1,6 +1,7 @@
 import hashlib
 import secrets
 from pathlib import Path
+from api.db import get_connection
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -8,14 +9,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from api.db import get_connection
+
 
 app = FastAPI()
 
-BASE_DIR = Path(__file__).resolve().parent          # это папка api/
+BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
-
 
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
@@ -27,11 +27,10 @@ class UserIn(BaseModel):
 
 
 class ScoreIn(BaseModel):
-    score: int              # имени нет: его определяет токен
+    score: int     
     boss_beaten: bool = False
 
 def player_by_token(conn, token):
-    """Возвращает имя игрока по токену или бросает 401."""
     if not token:
         raise HTTPException(status_code=401, detail="No token")
     row = conn.execute(
@@ -46,7 +45,6 @@ def player_by_token(conn, token):
 def hello():
     return {"message": "Sveiki!"}
 
-
 @app.get("/", response_class=HTMLResponse)
 def leaderboard(request: Request):
     rows = top_scores()
@@ -60,7 +58,6 @@ def rules(request: Request):
 
 @app.get("/players/{name}", response_class=HTMLResponse)
 def player_profile(request: Request, name: str):
-    """HTML-страница профиля игрока со статистикой."""
     with get_connection() as conn:
 
         row = conn.execute(
@@ -149,7 +146,3 @@ def player_stats(name: str):
     if row["total"] == 0:
         raise HTTPException(status_code=404, detail="There is no such player")
     return {"player": name, "games": row["games"], "best": row["best"]}
-
-# Запуск (из корня проекта):
-# source .venv_server/bin/activate
-# python -m uvicorn api.main:app --reload

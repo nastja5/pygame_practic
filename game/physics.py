@@ -1,8 +1,6 @@
 from game.constants import GRAVITY, JUMP_SPEED, START_Y, SCREEN_H, BOSS_MAX_HP
 
-
 class FishBody:
-    """Только физика рыбки: без картинки и Rect."""
     def __init__(self):
         self.y = float(START_Y)
         self.speed_y = 0.0
@@ -17,7 +15,6 @@ class FishBody:
     def reset(self):
         self.y = float(START_Y)
         self.speed_y = 0.0
-
 
 class SharkBody:
     def __init__(self, height):

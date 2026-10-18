@@ -1,11 +1,8 @@
-#api_client
 import requests
 
 SERVER = "http://localhost:8000"
 
-
 def login(name, password, register=False):
-    """Возвращает (token, error). Если всё хорошо, error = None."""
     body = {"name": name, "password": password}
     try:
         if register:
@@ -19,7 +16,6 @@ def login(name, password, register=False):
     except requests.RequestException:
         return None, "Server unavailable"
 
-
 def save_score(token, score, boss_beaten=False):
     try:
         r = requests.post(f"{SERVER}/scores", json={"score": score, "boss_beaten": boss_beaten},
@@ -28,9 +24,7 @@ def save_score(token, score, boss_beaten=False):
     except requests.RequestException as e:
         print("Server error, score not saved", e)
 
-
 def load_top():
-    """Возвращает (список рекордов, сервер_доступен)."""
     try:
         r = requests.get(f"{SERVER}/scores/top", timeout=2)
         return (r.json() if r.status_code == 200 else []), True

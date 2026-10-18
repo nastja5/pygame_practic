@@ -1,20 +1,19 @@
-# Виртуальные среды
 .venv/
 .venv_server/
 
-# Настройки VS Code
+
 .vscode/
 
-# Базы данных
+
 *.db
 *.sqlite3
 
-# Кэш Python и скомпилированные файлы
+
 __pycache__/
 **/__pycache__/
 *.pyc
 *.pyo
 
-# Временные файлы и ОС
+
 .DS_Store
 *.log
