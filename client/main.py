@@ -3,6 +3,7 @@ import pygame_widgets
 from pygame_widgets.button import Button
 from pygame_widgets.textbox import TextBox
 import random
+import threading
 
 from pathlib import Path
 from game.constants import *
@@ -511,8 +512,7 @@ while running:
 
     if level in (3,5) and not recordSaved:
         bossBeaten = (level == 5 and inBoss)
-        api_client.save_score(tokenIn, totalScore, bossBeaten)
-        recordSaved = True
+        threading.Thread(target=lambda: api_client.save_score(tokenIn, totalScore, bossBeaten), daemon=True).start()        recordSaved = True
         if level == 3:
             btnRetry.show()
             btnDieExit.show()
