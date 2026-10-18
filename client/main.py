@@ -14,7 +14,6 @@ from client import api_client
 
 pygame.init()
 
-
 screen = pygame.display.set_mode((1000, 600))
 pygame.display.set_caption("Press fish") 
 
