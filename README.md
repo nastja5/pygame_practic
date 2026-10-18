@@ -48,7 +48,7 @@ Linux(Ubuntu, Mint):
     6. Palaid serveri:
         .venv/bin/python -m uvicorn api.main:app --reload
     7. Atver otru termināli un palaid spēles galveno Python failu, izmantojot projekta virtuālo vidi.
-    Ё   source .venv/bin/activate
+       source .venv/bin/activate
         .venv/bin/python -m client.main
 
 
